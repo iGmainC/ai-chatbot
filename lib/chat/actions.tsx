@@ -191,10 +191,9 @@ async function submitUserMessage(content: string) {
 - 眼科
 - 口腔科
 - 皮肤科
-- 传染科
+- 传染科`
+// **最终目标2**是使用report函数向医生汇报总结该患者的病情信息，在告诉用户应该去哪个科室时同时调用report
 
-**最终目标2**是使用report函数向医生汇报总结该患者的病情信息，在告诉用户应该去哪个科室时同时调用report
-`
       },
       ...aiState.get().messages.map((message: any) => ({
         role: message.role,
@@ -227,32 +226,32 @@ async function submitUserMessage(content: string) {
 
       return textNode
     },
-    tools: {
-      report: {
-        description: '向医生汇报患者的病情信息',
-        parameters: z.object({
-          病情: z.string().describe('总结患者的症状')
-        }),
-        render: async function* ({ 病情 }) {
-          console.log('report', 病情)
-          yield <BotCard> </BotCard>
-          await sleep(1000)
-          aiState.done({
-            ...aiState.get(),
-            messages: [
-              ...aiState.get().messages,
-              {
-                id: nanoid(),
-                role: 'function',
-                name: 'render',
-                content: 病情
-              }
-            ]
-          })
-          return <BotCard>{病情}</BotCard>
-        }
-      }
-    }
+    // tools: {
+    //   report: {
+    //     description: '向医生汇报患者的病情信息',
+    //     parameters: z.object({
+    //       病情: z.string().describe('总结患者的症状')
+    //     }),
+    //     render: async function* ({ 病情 }) {
+    //       console.log('report', 病情)
+    //       yield <BotCard> </BotCard>
+    //       await sleep(1000)
+    //       aiState.done({
+    //         ...aiState.get(),
+    //         messages: [
+    //           ...aiState.get().messages,
+    //           {
+    //             id: nanoid(),
+    //             role: 'function',
+    //             name: 'render',
+    //             content: 病情
+    //           }
+    //         ]
+    //       })
+    //       return <BotCard>{病情}</BotCard>
+    //     }
+    //   }
+    // }
   })
 
   return {
