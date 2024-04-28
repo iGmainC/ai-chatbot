@@ -151,12 +151,18 @@ async function submitUserMessage(content: string) {
         role: 'system',
         content: `你是一个医疗顾问，你和openai没有关系，你不是gpt系列的模型，主要工作是预检分流，你的职责如下：
 
-1. 初步筛查: 询问患者的症状、旅行史、接触史等，以及测量体温等基本生理指标
-2. 分类判别: 根据患者的描述大概判别用户的病症
-3. 分流引导: 最后告诉用户要去哪个科室就诊
+1. 初步筛查: 询问患者的症状、性别、年龄、慢性病、病史等基本信息
+2. 分类判别: 根据患者的症状，详细的询问可能影响你判别的问题
+3. 分流引导: 最后告诉患者要去哪个科室就诊
 
-说话要口语化，你只需要提问你需要知道的信息，不用告诉用户你为什么要问用户这个问题（除非用户问你），你要主动询问用户
-你的**最终目标**是告诉用户应该去哪个科室就诊，有如下科室：
+说话要口语化，询问患者症状时不要问具体的症状，要问患者的感觉比如：
+
+【错】你是否感觉眼压过高
+【对】你有没有感觉眼睛涨涨的
+
+你只需要提问你需要知道的信息，不用告诉患者你为什么要问患者这个问题（除非患者问你），你要主动的诱导性询问患者，每次只能向患者问一个问题
+
+**最终目标1**是告诉患者应该去哪个科室就诊，这一点你不需要征求患者同意，有如下科室：
 
 - 呼吸内科
 - 消化内科
@@ -186,7 +192,9 @@ async function submitUserMessage(content: string) {
 - 口腔科
 - 皮肤科
 - 传染科
-        `
+
+**最终目标2**是使用report函数向医生汇报总结该患者的病情信息，在告诉用户应该去哪个科室时同时调用report
+`
       },
       ...aiState.get().messages.map((message: any) => ({
         role: message.role,
@@ -219,27 +227,16 @@ async function submitUserMessage(content: string) {
 
       return textNode
     },
-    functions: {
-      listStocks: {
-        description: 'List three imaginary stocks that are trending.',
+    tools: {
+      report: {
+        description: '向医生汇报患者的病情信息',
         parameters: z.object({
-          stocks: z.array(
-            z.object({
-              symbol: z.string().describe('The symbol of the stock'),
-              price: z.number().describe('The price of the stock'),
-              delta: z.number().describe('The change in price of the stock')
-            })
-          )
+          病情: z.string().describe('总结患者的症状')
         }),
-        render: async function* ({ stocks }) {
-          yield (
-            <BotCard>
-              <StocksSkeleton />
-            </BotCard>
-          )
-
+        render: async function* ({ 病情 }) {
+          console.log('report', 病情)
+          yield <BotCard> </BotCard>
           await sleep(1000)
-
           aiState.done({
             ...aiState.get(),
             messages: [
@@ -247,165 +244,12 @@ async function submitUserMessage(content: string) {
               {
                 id: nanoid(),
                 role: 'function',
-                name: 'listStocks',
-                content: JSON.stringify(stocks)
+                name: 'render',
+                content: 病情
               }
             ]
           })
-
-          return (
-            <BotCard>
-              <Stocks props={stocks} />
-            </BotCard>
-          )
-        }
-      },
-      showStockPrice: {
-        description:
-          'Get the current stock price of a given stock or currency. Use this to show the price to the user.',
-        parameters: z.object({
-          symbol: z
-            .string()
-            .describe(
-              'The name or symbol of the stock or currency. e.g. DOGE/AAPL/USD.'
-            ),
-          price: z.number().describe('The price of the stock.'),
-          delta: z.number().describe('The change in price of the stock')
-        }),
-        render: async function* ({ symbol, price, delta }) {
-          yield (
-            <BotCard>
-              <StockSkeleton />
-            </BotCard>
-          )
-
-          await sleep(1000)
-
-          aiState.done({
-            ...aiState.get(),
-            messages: [
-              ...aiState.get().messages,
-              {
-                id: nanoid(),
-                role: 'function',
-                name: 'showStockPrice',
-                content: JSON.stringify({ symbol, price, delta })
-              }
-            ]
-          })
-
-          return (
-            <BotCard>
-              <Stock props={{ symbol, price, delta }} />
-            </BotCard>
-          )
-        }
-      },
-      showStockPurchase: {
-        description:
-          'Show price and the UI to purchase a stock or currency. Use this if the user wants to purchase a stock or currency.',
-        parameters: z.object({
-          symbol: z
-            .string()
-            .describe(
-              'The name or symbol of the stock or currency. e.g. DOGE/AAPL/USD.'
-            ),
-          price: z.number().describe('The price of the stock.'),
-          numberOfShares: z
-            .number()
-            .describe(
-              'The **number of shares** for a stock or currency to purchase. Can be optional if the user did not specify it.'
-            )
-        }),
-        render: async function* ({ symbol, price, numberOfShares = 100 }) {
-          if (numberOfShares <= 0 || numberOfShares > 1000) {
-            aiState.done({
-              ...aiState.get(),
-              messages: [
-                ...aiState.get().messages,
-                {
-                  id: nanoid(),
-                  role: 'system',
-                  content: `[User has selected an invalid amount]`
-                }
-              ]
-            })
-
-            return <BotMessage content={'Invalid amount'} />
-          }
-
-          aiState.done({
-            ...aiState.get(),
-            messages: [
-              ...aiState.get().messages,
-              {
-                id: nanoid(),
-                role: 'function',
-                name: 'showStockPurchase',
-                content: JSON.stringify({
-                  symbol,
-                  price,
-                  numberOfShares
-                })
-              }
-            ]
-          })
-
-          return (
-            <BotCard>
-              <Purchase
-                props={{
-                  numberOfShares,
-                  symbol,
-                  price: +price,
-                  status: 'requires_action'
-                }}
-              />
-            </BotCard>
-          )
-        }
-      },
-      getEvents: {
-        description:
-          'List funny imaginary events between user highlighted dates that describe stock activity.',
-        parameters: z.object({
-          events: z.array(
-            z.object({
-              date: z
-                .string()
-                .describe('The date of the event, in ISO-8601 format'),
-              headline: z.string().describe('The headline of the event'),
-              description: z.string().describe('The description of the event')
-            })
-          )
-        }),
-        render: async function* ({ events }) {
-          yield (
-            <BotCard>
-              <EventsSkeleton />
-            </BotCard>
-          )
-
-          await sleep(1000)
-
-          aiState.done({
-            ...aiState.get(),
-            messages: [
-              ...aiState.get().messages,
-              {
-                id: nanoid(),
-                role: 'function',
-                name: 'getEvents',
-                content: JSON.stringify(events)
-              }
-            ]
-          })
-
-          return (
-            <BotCard>
-              <Events props={events} />
-            </BotCard>
-          )
+          return <BotCard>{病情}</BotCard>
         }
       }
     }
@@ -487,33 +331,24 @@ export const AI = createAI<AIState, UIState>({
 })
 
 export const getUIStateFromAIState = (aiState: Chat) => {
+  console.log(123)
+  console.log(aiState.messages)
   return aiState.messages
     .filter(message => message.role !== 'system')
-    .map((message, index) => ({
-      id: `${aiState.chatId}-${index}`,
-      display:
-        message.role === 'function' ? (
-          message.name === 'listStocks' ? (
-            <BotCard>
-              <Stocks props={JSON.parse(message.content)} />
-            </BotCard>
-          ) : message.name === 'showStockPrice' ? (
-            <BotCard>
-              <Stock props={JSON.parse(message.content)} />
-            </BotCard>
-          ) : message.name === 'showStockPurchase' ? (
-            <BotCard>
-              <Purchase props={JSON.parse(message.content)} />
-            </BotCard>
-          ) : message.name === 'getEvents' ? (
-            <BotCard>
-              <Events props={JSON.parse(message.content)} />
-            </BotCard>
-          ) : null
-        ) : message.role === 'user' ? (
-          <UserMessage>{message.content}</UserMessage>
-        ) : (
-          <BotMessage content={message.content} />
-        )
-    }))
+    .map((message, index) => {
+      console.log(message)
+      return {
+        id: `${aiState.chatId}-${index}`,
+        display:
+          message.role === 'function' ? (
+            message.name === 'render' ? (
+              <BotCard>{message.content}</BotCard>
+            ) : null
+          ) : message.role === 'user' ? (
+            <UserMessage>{message.content}</UserMessage>
+          ) : (
+            <BotMessage content={message.content} />
+          )
+      }
+    })
 }
